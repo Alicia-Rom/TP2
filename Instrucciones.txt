@@ -1,0 +1,13 @@
+ python3 giro_sin_trayectoria.2.py --show-inference --model-path "/home/group1core/Desktop/TP2/Prueba4.11_Def/Prueba4.11_Def/best.pt"
+
+python3 core_deepracer_jetson_v3.py \
+  --server-ip 172.16.0.1 \
+  --server-port 20001 \
+  --jetson-ip 192.168.50.2 \
+  --jetson-port 21000 \
+  --show-inference
+
+python jetson_ai_server_v5.py \
+  --server-ip 172.16.0.1 \
+  --server-port 21000 \
+  --model-path best.pt
