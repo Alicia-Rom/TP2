@@ -285,6 +285,7 @@ def decision_from_dict(item):
         stop=bool(item.get("stop", False)),
         control_mode=int(item.get("control_mode", 0) or 0),
         throttle_cap=item.get("throttle_cap", None),
+        force_manual_control=bool(item.get("force_manual_control", False)),
         source_label=item.get("source_label", ""),
         source_confidence=float(item.get("source_confidence", 0.0) or 0.0),
     )
@@ -295,6 +296,7 @@ def empty_decision():
         stop=False,
         control_mode=0,
         throttle_cap=None,
+        force_manual_control=False,
         source_label="",
         source_confidence=0.0,
     )
@@ -653,12 +655,15 @@ def main():
         auto_utils.set_stop(1 if last_decision.stop else 0)
         control_mode = last_decision.control_mode if last_decision.control_mode else 0
 
-        manual_turn_active = (
+        manual_control_active = (
             not last_decision.stop
-            and control_mode in (1, 3)
+            and (
+                control_mode in (1, 3)
+                or last_decision.force_manual_control
+            )
         )
 
-        if manual_turn_active:
+        if manual_control_active:
             control_giro, control_acelerador = controls_without_road(
                 control_mode,
                 auto_utils.lidar_throttle_control,
@@ -760,7 +765,7 @@ def main():
             if trayectory_not_found:
                 cv2.putText(
                     img_overlay,
-                    "Trayectoria no encontrada / giro por IA",
+                    "Trayectoria no usada / control manual IA",
                     (10, 175),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.7,
