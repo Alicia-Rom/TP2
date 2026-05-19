@@ -36,13 +36,6 @@ import artemis_autonomous_car
 
 MAX_PACKET_SIZE = 99999
 
-# Valores de giro usados cuando la trayectoria no se encuentra o cuando la IA
-# mantiene una orden de direccion. Son los mismos conceptos del codigo local.
-MANUAL_LEFT_STEERING = 0.45
-MANUAL_RIGHT_STEERING = -0.45
-MANUAL_STRAIGHT_STEERING = 0.0
-
-
 def send_control(sock, control_giro, control_acelerador, address):
     """Envia al coche byte b'C' + double giro + double acelerador."""
     payload = (
@@ -61,12 +54,13 @@ def controls_without_road(control_mode, base_throttle, steering_calibration):
     """
     Control de emergencia si artemis no encuentra trayectoria.
     control_mode: 1=izquierda, 2=recto, 3=derecha.
+    La intensidad del giro se aplica despues con --steering-gain.
     """
     if control_mode == 1:
-        return MANUAL_LEFT_STEERING + steering_calibration, base_throttle
+        return 1.0 + steering_calibration, base_throttle
     if control_mode == 3:
-        return MANUAL_RIGHT_STEERING + steering_calibration, base_throttle
-    return MANUAL_STRAIGHT_STEERING + steering_calibration, base_throttle
+        return -1.0 + steering_calibration, base_throttle
+    return steering_calibration, base_throttle
 
 
 def parse_route(route_text: str):
@@ -542,9 +536,9 @@ def main():
     print(f"[CORE SPLIT] Drop stale frames: {args.drop_stale_frames}")
     print(
         "[CORE SPLIT] Avance sin carretera: "
-        f"recto={MANUAL_STRAIGHT_STEERING:.2f} "
-        f"izquierda={MANUAL_LEFT_STEERING:.2f} "
-        f"derecha={MANUAL_RIGHT_STEERING:.2f}"
+        "recto=calibracion "
+        f"izquierda=+steering_gain({args.steering_gain:.2f}) "
+        f"derecha=-steering_gain({args.steering_gain:.2f})"
     )
     print("[CORE SPLIT] Manual: w delante, s atras, a izquierda, d derecha, 2 rapido, x atras rapido.")
     print("[CORE SPLIT] En Linux usa --show-inference para capturar teclado desde la ventana OpenCV.")
