@@ -50,6 +50,11 @@ def clamp(value, minimum=-1.0, maximum=1.0):
     return max(minimum, min(maximum, value))
 
 
+def apply_steering_gain(control_giro, steering_gain, steering_calibration):
+    base_steering = control_giro - steering_calibration
+    return clamp((base_steering * steering_gain) + steering_calibration)
+
+
 def controls_without_road(control_mode, base_throttle, steering_calibration):
     """
     Control de emergencia si artemis no encuentra trayectoria.
@@ -365,10 +370,22 @@ def summarize_detections(detections, top_k):
     if not detections:
         return "sin detecciones"
 
-    return ", ".join(
-        f"{detection.label} ({detection.confidence:.2f})"
-        for detection in detections[: max(top_k, 1)]
-    )
+    summary_parts = []
+    for detection in detections[: max(top_k, 1)]:
+        width = detection.width
+        height = detection.height
+        if width is None or height is None:
+            width = max(0.0, detection.x2 - detection.x1)
+            height = max(0.0, detection.y2 - detection.y1)
+
+        area = detection.area if detection.area else width * height
+        speed = "--" if detection.speed_px_s is None else f"{detection.speed_px_s:.1f}px/s"
+        summary_parts.append(
+            f"{detection.label} ({detection.confidence:.2f}) "
+            f"tam={width:.0f}x{height:.0f} area={area:.0f} vel={speed}"
+        )
+
+    return ", ".join(summary_parts)
 
 
 def summarize_decision(decision):
@@ -484,7 +501,7 @@ def build_arg_parser():
     parser.add_argument("--show-inference", action="store_true")
 
     parser.add_argument("--route", default="2,2,2,2,2,2,2,2,2,2,0")
-    parser.add_argument("--steering-calibration", type=float, default=0.19)
+    parser.add_argument("--steering-calibration", type=float, default=-0.25)
     parser.add_argument(
         "--steering-gain",
         type=float,
@@ -496,7 +513,7 @@ def build_arg_parser():
     parser.add_argument("--keep-queued-frames", dest="drop_stale_frames", action="store_false")
     parser.set_defaults(drop_stale_frames=True)
 
-    parser.add_argument("--stats-every", type=int, default=60)
+    parser.add_argument("--stats-every", type=int, default=0)
     parser.add_argument("--log-every-seconds", type=float, default=1.0)
     parser.add_argument("--log-top-k", type=int, default=3)
 
@@ -537,8 +554,8 @@ def main():
     print(
         "[CORE SPLIT] Avance sin carretera: "
         "recto=calibracion "
-        f"izquierda=+steering_gain({args.steering_gain:.2f}) "
-        f"derecha=-steering_gain({args.steering_gain:.2f})"
+        f"izquierda=+steering_gain({args.steering_gain:.2f})+calibracion "
+        f"derecha=-steering_gain({args.steering_gain:.2f})+calibracion"
     )
     print("[CORE SPLIT] Manual: w delante, s atras, a izquierda, d derecha, 2 rapido, x atras rapido.")
     print("[CORE SPLIT] En Linux usa --show-inference para capturar teclado desde la ventana OpenCV.")
@@ -624,13 +641,14 @@ def main():
             # pero si quieres mantener ultima decision, comenta la linea siguiente.
             last_decision = empty_decision()
 
-        maybe_log_detection(
-            last_detections,
-            last_decision,
-            top_k=args.log_top_k,
-            min_interval=max(args.log_every_seconds, 0.0),
-            state=log_state,
-        )
+        if ok:
+            maybe_log_detection(
+                last_detections,
+                last_decision,
+                top_k=args.log_top_k,
+                min_interval=max(args.log_every_seconds, 0.0),
+                state=log_state,
+            )
 
         auto_utils.set_stop(1 if last_decision.stop else 0)
         control_mode = last_decision.control_mode if last_decision.control_mode else 0
@@ -661,7 +679,11 @@ def main():
                     args.steering_calibration,
                 )
 
-        control_giro = clamp(control_giro * args.steering_gain)
+        control_giro = apply_steering_gain(
+            control_giro,
+            args.steering_gain,
+            args.steering_calibration,
+        )
 
         if last_decision.throttle_cap is not None:
             control_acelerador = min(control_acelerador, last_decision.throttle_cap)
