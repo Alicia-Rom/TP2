@@ -296,6 +296,10 @@ def decision_to_dict(decision):
             if decision.source_confidence is not None
             else 0.0
         ),
+        # Compatibilidad con tu ai_inference_engine.py actual:
+        # algunas maniobras especiales, como u_turn o parking_cones,
+        # fuerzan control manual desde la IA.
+        "force_manual_control": bool(getattr(decision, "force_manual_control", False)),
     }
 
 
@@ -484,6 +488,16 @@ def build_arg_parser():
     parser.add_argument("--max-detections", type=int, default=50)
     parser.add_argument("--min-confidence", type=float, default=0.5)
     parser.add_argument("--decision-hold-seconds", type=float, default=1.5)
+    parser.add_argument(
+        "--current-speed",
+        type=float,
+        default=0.0,
+        help=(
+            "Velocidad aproximada del coche en m/s para ObjectDecisionEngine.decide(). "
+            "Si no se mide desde el CORE, se deja en 0.0; el motor de decision aplica "
+            "su minimo interno cuando lo necesita."
+        ),
+    )
     parser.add_argument("--inference-every", type=int, default=1)
     parser.add_argument("--drop-stale-frames", dest="drop_stale_frames", action="store_true")
     parser.add_argument("--keep-queued-frames", dest="drop_stale_frames", action="store_false")
@@ -530,6 +544,7 @@ def main():
     print(f"[JETSON IA SPLIT] Config acciones: {args.actions_config}")
     print(f"[JETSON IA SPLIT] Acciones configuradas: {sorted(actions.keys())}")
     print(f"[JETSON IA SPLIT] Device: {args.device}")
+    print(f"[JETSON IA SPLIT] Current speed para decide(): {args.current_speed:.2f} m/s")
     print(f"[JETSON IA SPLIT] Filtro cercania: {format_filter_settings(actions)}")
     print(f"[JETSON IA SPLIT] Drop stale frames: {args.drop_stale_frames}")
     if slow_speed_changes:
@@ -588,10 +603,10 @@ def main():
                     stop_state,
                 )
                 last_inference_ms = (time.perf_counter() - start) * 1000.0
-                last_decision = decision_engine.decide(last_used_detections)
+                last_decision = decision_engine.decide(last_used_detections, args.current_speed)
 
             if last_decision is None:
-                last_decision = decision_engine.decide([])
+                last_decision = decision_engine.decide([], args.current_speed)
 
             response = build_response(
                 raw_detections=last_raw_detections,
