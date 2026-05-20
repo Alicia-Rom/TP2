@@ -55,6 +55,25 @@ def apply_steering_gain(control_giro, steering_gain, steering_calibration):
     return clamp((base_steering * steering_gain) + steering_calibration)
 
 
+def straight_without_road_steering(now, state, steering_calibration, every_seconds, pulse_seconds):
+    if steering_calibration == 0 or every_seconds <= 0 or pulse_seconds <= 0:
+        return 0.0
+
+    if state["next_ts"] is None:
+        state["next_ts"] = now + every_seconds
+        state["until_ts"] = 0.0
+
+    if now < state["until_ts"]:
+        return steering_calibration
+
+    if now >= state["next_ts"]:
+        state["until_ts"] = now + pulse_seconds
+        state["next_ts"] = now + every_seconds
+        return steering_calibration
+
+    return 0.0
+
+
 def controls_without_road(control_mode, base_throttle, steering_calibration):
     """
     Control de emergencia si artemis no encuentra trayectoria.
@@ -65,7 +84,7 @@ def controls_without_road(control_mode, base_throttle, steering_calibration):
         return 1.0 + steering_calibration, base_throttle
     if control_mode == 3:
         return -1.0 + steering_calibration, base_throttle
-    return steering_calibration, base_throttle
+    return 0.0, base_throttle
 
 
 def parse_route(route_text: str):
@@ -510,6 +529,18 @@ def build_arg_parser():
         default=1.25,
         help="Multiplica el giro calculado. Valores >1 cierran mas el giro.",
     )
+    parser.add_argument(
+        "--straight-calibration-every-seconds",
+        type=float,
+        default=1.0,
+        help="Intervalo entre pulsos de calibracion al avanzar recto sin trayectoria.",
+    )
+    parser.add_argument(
+        "--straight-calibration-pulse-seconds",
+        type=float,
+        default=0.15,
+        help="Duracion del pulso de calibracion al avanzar recto sin trayectoria.",
+    )
 
     parser.add_argument("--drop-stale-frames", dest="drop_stale_frames", action="store_true")
     parser.add_argument("--keep-queued-frames", dest="drop_stale_frames", action="store_false")
@@ -555,9 +586,14 @@ def main():
     print(f"[CORE SPLIT] Drop stale frames: {args.drop_stale_frames}")
     print(
         "[CORE SPLIT] Avance sin carretera: "
-        "recto=calibracion "
+        "recto=0.0 con pulsos de calibracion "
         f"izquierda=+steering_gain({args.steering_gain:.2f})+calibracion "
         f"derecha=-steering_gain({args.steering_gain:.2f})+calibracion"
+    )
+    print(
+        "[CORE SPLIT] Pulso recto sin trayectoria: "
+        f"cada {args.straight_calibration_every_seconds:.2f}s "
+        f"durante {args.straight_calibration_pulse_seconds:.2f}s"
     )
     print("[CORE SPLIT] Manual: w delante, s atras, a izquierda, d derecha, 2 rapido, x atras rapido.")
     print("[CORE SPLIT] En Linux usa --show-inference para capturar teclado desde la ventana OpenCV.")
@@ -582,6 +618,7 @@ def main():
 
     log_state = {"last_key": None, "last_ts": 0.0}
     manual_state = build_manual_state()
+    straight_calibration_state = {"next_ts": None, "until_ts": 0.0}
 
     while True:
         loop_start = time.perf_counter()
@@ -663,12 +700,27 @@ def main():
             )
         )
 
+        skip_steering_gain = False
+
         if manual_control_active:
-            control_giro, control_acelerador = controls_without_road(
-                control_mode,
-                auto_utils.lidar_throttle_control,
-                args.steering_calibration,
-            )
+            if control_mode in (1, 3):
+                control_giro, control_acelerador = controls_without_road(
+                    control_mode,
+                    auto_utils.lidar_throttle_control,
+                    args.steering_calibration,
+                )
+                straight_calibration_state["next_ts"] = None
+                straight_calibration_state["until_ts"] = 0.0
+            else:
+                control_giro = straight_without_road_steering(
+                    time.time(),
+                    straight_calibration_state,
+                    args.steering_calibration,
+                    args.straight_calibration_every_seconds,
+                    args.straight_calibration_pulse_seconds,
+                )
+                control_acelerador = auto_utils.lidar_throttle_control
+                skip_steering_gain = True
             trayectory_not_found = 1
         else:
             control_giro, control_acelerador, trayectory_not_found = auto_utils.proceso_fotograma(
@@ -678,17 +730,36 @@ def main():
             )
 
             if trayectory_not_found:
-                control_giro, control_acelerador = controls_without_road(
-                    control_mode,
-                    auto_utils.lidar_throttle_control,
-                    args.steering_calibration,
-                )
+                if control_mode in (1, 3):
+                    control_giro, control_acelerador = controls_without_road(
+                        control_mode,
+                        auto_utils.lidar_throttle_control,
+                        args.steering_calibration,
+                    )
+                    straight_calibration_state["next_ts"] = None
+                    straight_calibration_state["until_ts"] = 0.0
+                else:
+                    control_giro = straight_without_road_steering(
+                        time.time(),
+                        straight_calibration_state,
+                        args.steering_calibration,
+                        args.straight_calibration_every_seconds,
+                        args.straight_calibration_pulse_seconds,
+                    )
+                    control_acelerador = auto_utils.lidar_throttle_control
+                    skip_steering_gain = True
+            else:
+                straight_calibration_state["next_ts"] = None
+                straight_calibration_state["until_ts"] = 0.0
 
-        control_giro = apply_steering_gain(
-            control_giro,
-            args.steering_gain,
-            args.steering_calibration,
-        )
+        if skip_steering_gain:
+            control_giro = clamp(control_giro)
+        else:
+            control_giro = apply_steering_gain(
+                control_giro,
+                args.steering_gain,
+                args.steering_calibration,
+            )
 
         if last_decision.throttle_cap is not None:
             control_acelerador = min(control_acelerador, last_decision.throttle_cap)
