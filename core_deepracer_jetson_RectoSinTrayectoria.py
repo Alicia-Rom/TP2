@@ -1,7 +1,7 @@
 """
 CORE - DeepRacer/ARTEMIS + Jetson IA separada.
 Version RectoSinTrayectoria: no usa nunca la trayectoria del suelo.
-El coche avanza recto con --steering-calibration como correccion fija,
+El coche avanza recto y aplica --steering-calibration como pulso periodico,
 pero sigue ejecutando las decisiones de senales de la IA.
 
 Este script aplica la idea del codigo local giro_sin_trayectoria.2.py, pero
@@ -530,6 +530,18 @@ def build_arg_parser():
 
     parser.add_argument("--route", default="2,2,2,2,2,2,2,2,2,2,0")
     parser.add_argument("--steering-calibration", type=float, default=-0.25)
+    parser.add_argument(
+        "--straight-calibration-every-seconds",
+        type=float,
+        default=1.0,
+        help="Intervalo entre pulsos de calibracion al avanzar recto sin trayectoria.",
+    )
+    parser.add_argument(
+        "--straight-calibration-pulse-seconds",
+        type=float,
+        default=0.15,
+        help="Duracion del pulso de calibracion al avanzar recto sin trayectoria.",
+    )
 
     parser.add_argument("--drop-stale-frames", dest="drop_stale_frames", action="store_true")
     parser.add_argument("--keep-queued-frames", dest="drop_stale_frames", action="store_false")
@@ -571,11 +583,16 @@ def main():
     print(f"[CORE SPLIT] Jetson IA UDP {args.jetson_ip}:{args.jetson_port}")
     print(f"[CORE SPLIT] Ruta: {route}")
     print(f"[CORE SPLIT] Modo: recto sin trayectoria")
-    print(f"[CORE SPLIT] Compensacion direccion fija: {args.steering_calibration:.2f}")
+    print(f"[CORE SPLIT] Compensacion direccion por pulso: {args.steering_calibration:.2f}")
     print(
         "[CORE SPLIT] Throttle recto: "
         f"throttle_o={auto_utils.throttle_o:.2f}, "
         f"max_throttle={auto_utils.max_throttle:.2f}"
+    )
+    print(
+        "[CORE SPLIT] Pulso recto sin trayectoria: "
+        f"cada {args.straight_calibration_every_seconds:.2f}s "
+        f"durante {args.straight_calibration_pulse_seconds:.2f}s"
     )
     print(f"[CORE SPLIT] Drop stale frames: {args.drop_stale_frames}")
     print(
@@ -605,6 +622,7 @@ def main():
 
     log_state = {"last_key": None, "last_ts": 0.0}
     manual_state = build_manual_state()
+    straight_calibration_state = {"next_ts": None, "until_ts": 0.0}
 
     while True:
         loop_start = time.perf_counter()
@@ -676,7 +694,13 @@ def main():
             )
 
         control_mode = last_decision.control_mode if last_decision.control_mode else 0
-        control_giro = clamp(args.steering_calibration)
+        control_giro = straight_without_road_steering(
+            time.time(),
+            straight_calibration_state,
+            args.steering_calibration,
+            args.straight_calibration_every_seconds,
+            args.straight_calibration_pulse_seconds,
+        )
         control_acelerador = artemis_base_throttle(auto_utils)
         trayectory_not_found = 1
 
@@ -687,6 +711,8 @@ def main():
                 args.steering_calibration,
             )
             control_giro = clamp(control_giro)
+            straight_calibration_state["next_ts"] = None
+            straight_calibration_state["until_ts"] = 0.0
 
         if last_decision.throttle_cap is not None:
             control_acelerador = min(control_acelerador, last_decision.throttle_cap)
