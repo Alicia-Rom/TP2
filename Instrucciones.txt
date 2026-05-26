@@ -1,4 +1,4 @@
- python3 giro_sin_trayectoria.2.py --show-inference --model-path "/home/group1core/Desktop/TP2/Prueba4.11_Def/Prueba4.11_Def/best.pt"
+ python3 giro_sin_trayectoria.2.py --show-inference --model-path "/home/group1core/Desktop/TP2/best.pt"
 
 python3 core_deepracer_jetson_v3.py \
   --server-ip 172.16.0.1 \

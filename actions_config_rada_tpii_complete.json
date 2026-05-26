@@ -39,7 +39,7 @@
   "cono": {
     "type": "parking_cones",
     "duration": 7.0,
-    "min_area": 500,
+    "min_area": 200,
     "min_width": 0,
     "min_height": 0,
     "min_center_y": 0
@@ -61,7 +61,7 @@
   },
   "ninos": {
     "type": "slow",
-    "throttle_cap": 0.45,
+    "throttle_cap": 0.35,
     "min_area": 750,
     "min_width": 0,
     "min_height": 0,
@@ -69,7 +69,6 @@
   },
   "obligatorio_continuar_recto": {
     "type": "slow",
-    "throttle_cap": 0.55,
     "min_area": 750,
     "min_width": 0,
     "min_height": 0,
@@ -78,8 +77,8 @@
   "obligatorio_girar_derecha": {
     "type": "direction",
     "control": 3,
-    "cooldown": 2,
-    "min_area": 500,
+    "cooldown": 1.05,
+    "min_area": 700,
     "min_width": 0,
     "min_height": 0,
     "min_center_y": 0
@@ -87,15 +86,15 @@
   "obligatorio_girar_izquierda": {
     "type": "direction",
     "control": 1,
-    "cooldown": 2,
-    "min_area": 850,
+    "cooldown": 1.05,
+    "min_area": 700,
     "min_width": 0,
     "min_height": 0,
     "min_center_y": 0
   },
   "obras": {
     "type": "slow",
-    "throttle_cap": 0.45,
+    "throttle_cap": 0.43,
     "min_area": 750,
     "min_width": 0,
     "min_height": 0,
@@ -111,7 +110,7 @@
   },
   "peligro_obras": {
     "type": "slow",
-    "throttle_cap": 0.45,
+    "throttle_cap": 0.4,
     "min_area": 750,
     "min_width": 0,
     "min_height": 0,
@@ -136,7 +135,7 @@
   },
   "prohibido": {
     "type": "u_turn",
-    "duration": 3.0,
+    "duration": 3.3,
     "min_area": 850,
     "min_width": 0,
     "min_height": 0,
@@ -159,16 +158,16 @@
     "min_center_y": 0
   },
   "valla":{ 
-    "type": "u_turn",
-    "duration": 3.0,
-    "min_area": 850,
+    "type": "stop",
+    "duration": 2.5,
+    "min_area": 1000,
     "min_width": 0,
     "min_height": 0,
     "min_center_y": 0
   },
   "velocidad_max_30": {
     "type": "slow",
-    "throttle_cap": 0.45,
+    "throttle_cap": 0.41,
     "min_area": 750,
     "min_width": 0,
     "min_height": 0,
@@ -176,7 +175,7 @@
   },
   "velocidad_max_90": {
     "type": "slow",
-    "throttle_cap": 0.65,
+    "throttle_cap": 0.50,
     "min_area": 750,
     "min_width": 0,
     "min_height": 0,

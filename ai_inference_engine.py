@@ -211,7 +211,7 @@ class ObjectDecisionEngine:
             #CAMBIO_STOP
             if action_type == "stop":
                 # Distancia que queremos avanzar después de detectar el STOP
-                distance_to_advance = 0.20  # 20 cm
+                distance_to_advance = 0.01  # 20 cm
 
                 # Velocidad real del coche (m/s)
                 speed = max(current_speed, 0.4)  # evitar división por cero
