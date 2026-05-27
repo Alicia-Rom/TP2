@@ -169,6 +169,9 @@ class ObjectDecisionEngine:
 
         self.direction_until = 0.0
         self.direction_control = 0
+        self.active_speed_throttle_cap = None
+        self.active_speed_label = None
+        self.active_speed_confidence = 0.0
         #CAMBIO_ALICIA
         # Estado para maniobras complejas
         self.u_turn_until = 0.0
@@ -234,6 +237,9 @@ class ObjectDecisionEngine:
             if action_type == "direction":
                 self.direction_control = int(action.get("control", 0))
                 self.direction_until = now + float(action.get("cooldown", self.decision_hold_seconds))
+                self.active_speed_throttle_cap = None
+                self.active_speed_label = None
+                self.active_speed_confidence = 0.0
                 decision.control_mode = self.direction_control
                 decision.source_label = detection.label
                 decision.source_confidence = detection.confidence
@@ -241,6 +247,9 @@ class ObjectDecisionEngine:
 
             if action_type == "slow":
                 throttle_cap = float(action.get("throttle_cap", 0.20))
+                self.active_speed_throttle_cap = throttle_cap
+                self.active_speed_label = detection.label
+                self.active_speed_confidence = detection.confidence
                 decision.throttle_cap = throttle_cap
                 decision.source_label = detection.label
                 decision.source_confidence = detection.confidence
@@ -396,6 +405,17 @@ class ObjectDecisionEngine:
             return decision
 
 
+
+        if (
+            self.active_speed_throttle_cap is not None
+            and decision.throttle_cap is None
+            and not decision.stop
+            and decision.control_mode == 0
+            and not decision.force_manual_control
+        ):
+            decision.throttle_cap = self.active_speed_throttle_cap
+            decision.source_label = self.active_speed_label
+            decision.source_confidence = self.active_speed_confidence
 
 
 

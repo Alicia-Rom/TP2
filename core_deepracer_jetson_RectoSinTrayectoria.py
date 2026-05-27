@@ -531,6 +531,12 @@ def build_arg_parser():
     parser.add_argument("--route", default="2,2,2,2,2,2,2,2,2,2,0")
     parser.add_argument("--steering-calibration", type=float, default=-0.25)
     parser.add_argument(
+        "--steering-gain",
+        type=float,
+        default=1.35,
+        help="Multiplica solo los giros por senal. Valores >1 cierran mas el giro.",
+    )
+    parser.add_argument(
         "--straight-calibration-every-seconds",
         type=float,
         default=1.0,
@@ -583,6 +589,7 @@ def main():
     print(f"[CORE SPLIT] Jetson IA UDP {args.jetson_ip}:{args.jetson_port}")
     print(f"[CORE SPLIT] Ruta: {route}")
     print(f"[CORE SPLIT] Modo: recto sin trayectoria")
+    print(f"[CORE SPLIT] Ganancia de giro por senal: {args.steering_gain:.2f}")
     print(f"[CORE SPLIT] Compensacion direccion por pulso: {args.steering_calibration:.2f}")
     print(
         "[CORE SPLIT] Throttle recto: "
@@ -710,7 +717,11 @@ def main():
                 control_acelerador,
                 args.steering_calibration,
             )
-            control_giro = clamp(control_giro)
+            control_giro = apply_steering_gain(
+                control_giro,
+                args.steering_gain,
+                args.steering_calibration,
+            )
             straight_calibration_state["next_ts"] = None
             straight_calibration_state["until_ts"] = 0.0
 
