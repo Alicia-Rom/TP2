@@ -518,7 +518,7 @@ def build_arg_parser():
         description="CORE DeepRacer/ARTEMIS con IA remota en Jetson."
     )
 
-    parser.add_argument("--server-ip", default="10.0.128.177")
+    parser.add_argument("--server-ip", default="172.16.0.1")
     parser.add_argument("--server-port", type=int, default=20001)
 
     parser.add_argument("--jetson-ip", default="192.168.50.2")
