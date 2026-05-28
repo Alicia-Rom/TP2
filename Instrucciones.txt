@@ -6,7 +6,7 @@ python3 jetson_ai_server_v2.py \
   --device 0
 
 
-python3 core_deepracer_jetsonv2.py \
+python3 core_deepracer_jetson_v2.py \
   --server-ip 172.16.0.1 \
   --server-port 20001 \
   --jetson-ip 192.168.50.2 \

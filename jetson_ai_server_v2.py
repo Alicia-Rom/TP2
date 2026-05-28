@@ -26,7 +26,7 @@ from types import SimpleNamespace
 import cv2
 import numpy as np
 
-from ai_inference_enginev2 import (
+from ai_inference_engine_v2 import (
     DEFAULT_MODEL_PATH,
     LocalYOLOObjectDetector,
     ObjectDecisionEngine,
@@ -35,6 +35,8 @@ from ai_inference_enginev2 import (
 
 
 MAX_PACKET_SIZE = 99999
+# Inferencias iniciales para evitar que el primer frame real pague el coste
+# de inicializacion de TensorRT/GPU.
 DEFAULT_WARMUP_RUNS = 5
 DEFAULT_ACTIONS_CONFIG = Path(__file__).resolve().with_name(
     "actions_config_rada_tpii_complete.json"
@@ -323,6 +325,7 @@ def build_response(
     inference_ms,
     stop_state,
 ):
+    # Paquete compacto que la Jetson devuelve al CORE por UDP.
     return {
         "type": "AI_DECISION",
         "detections": [
@@ -428,10 +431,12 @@ def configure_slow_action_speeds(actions, slow_throttle_cap, slow_throttle_scale
 
 
 def model_uses_tensorrt(model_path):
+    # En este proyecto el formato .engine identifica el motor TensorRT.
     return Path(model_path).suffix.lower() == ".engine"
 
 
 def inspect_cuda():
+    # Se comprueba al arrancar para mostrar un log claro y evitar fallback a CPU.
     try:
         import torch
 
@@ -457,6 +462,7 @@ def resolve_device(requested_device, model_path, cuda_info):
     device_text = str(requested_device).strip()
     uses_tensorrt = model_uses_tensorrt(model_path)
 
+    # En TensorRT usamos la GPU 0 por defecto; CPU no es una opcion valida.
     if not device_text or device_text.lower() in ("none", "auto"):
         device_text = "0" if uses_tensorrt else "cpu"
 
@@ -481,6 +487,7 @@ def resolve_device(requested_device, model_path, cuda_info):
 
 
 def warm_up_detector(detector, image_size, runs=DEFAULT_WARMUP_RUNS):
+    # Ejecuta inferencias falsas para estabilizar los tiempos antes del bucle UDP.
     runs = max(int(runs), 0)
     if runs == 0:
         return 0, 0.0
@@ -500,6 +507,7 @@ def recv_latest_image_packet(sock, drop_stale_frames):
     if not drop_stale_frames:
         return data, address, 0
 
+    # Si hay cola acumulada, se procesa solo el ultimo frame recibido.
     latest_data = data
     latest_address = address
     dropped = 0
@@ -561,6 +569,7 @@ def build_arg_parser():
 
 def main():
     args = build_arg_parser().parse_args()
+    # Validacion temprana de TensorRT/CUDA antes de abrir el servidor UDP.
     model_path = Path(args.model_path).expanduser().resolve()
     uses_tensorrt = model_uses_tensorrt(model_path)
     cuda_info = inspect_cuda()
@@ -582,6 +591,7 @@ def main():
         max_detections=args.max_detections,
     )
 
+    # Calienta TensorRT para que el primer frame del coche no tenga latencia extra.
     warmup_runs, warmup_avg_ms = warm_up_detector(
         detector,
         image_size=args.image_size,
@@ -646,6 +656,7 @@ def main():
             continue
 
         try:
+            # La Jetson solo procesa imagenes; el control final se decide en el CORE.
             img = decode_image_packet(data)
             if img is None:
                 print("[JETSON IA SPLIT] Imagen no valida")
@@ -655,6 +666,7 @@ def main():
 
             if frame_counter % max(args.inference_every, 1) == 0:
                 start = time.perf_counter()
+                # Inferencia TensorRT + filtrado por distancia + logica de STOP.
                 _, last_raw_detections = detector.infer(img)
                 last_raw_metrics = update_detection_metrics(
                     last_raw_detections,
@@ -675,6 +687,7 @@ def main():
             if last_decision is None:
                 last_decision = decision_engine.decide([], args.current_speed)
 
+            # La respuesta incluye decision y metricas para depuracion en el CORE.
             response = build_response(
                 raw_detections=last_raw_detections,
                 used_detections=last_used_detections,

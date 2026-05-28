@@ -13,6 +13,7 @@ except ImportError:  # pragma: no cover - depende del entorno local
     YOLO = None
 
 
+# Modelo TensorRT generado en la Jetson Orin Nano.
 DEFAULT_MODEL_PATH = Path(__file__).resolve().with_name("best.engine")
 
 # Acciones por defecto que relacionan una clase detectada con una respuesta
@@ -95,6 +96,7 @@ class LocalYOLOObjectDetector:
             raise FileNotFoundError(f"No se encontro el modelo YOLO: {self.model_path}")
 
         self.uses_tensorrt = self.model_path.suffix.lower() == ".engine"
+        # Los motores TensorRT no deben ejecutarse en CPU: se fuerza GPU por defecto.
         if self.uses_tensorrt and device is None:
             device = "0"
         if self.uses_tensorrt and str(device).lower() == "cpu":
@@ -112,6 +114,7 @@ class LocalYOLOObjectDetector:
 
     # Ejecuta la inferencia sobre un frame con el modelo local.
     def infer(self, frame):
+        # Ultralytics usa TensorRT automaticamente al cargar un .engine.
         results = self.model.predict(
             source=frame,
             conf=self.min_confidence,
@@ -126,6 +129,8 @@ class LocalYOLOObjectDetector:
 
     # Convierte la salida propia de Ultralytics a Detection.
     def _collect_detections(self, result):
+        # Se normaliza la salida para que el resto del sistema no dependa
+        # del formato interno de Ultralytics/TensorRT.
         boxes = getattr(result, "boxes", None)
         if boxes is None or len(boxes) == 0:
             return []
@@ -219,6 +224,7 @@ class ObjectDecisionEngine:
             if action is None:
                 continue
 
+            # La primera senal valida define la accion de alto nivel del coche.
             action_type = action.get("type")
             #CAMBIO_STOP
             if action_type == "stop":

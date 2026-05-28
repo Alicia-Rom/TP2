@@ -333,6 +333,7 @@ def ask_jetson_for_decision(jetson_sock, jetson_address, image_packet_data, time
     jetson_sock.settimeout(timeout)
 
     try:
+        # El CORE no ejecuta IA: manda el frame crudo y espera una decision.
         jetson_sock.sendto(image_packet_data, jetson_address)
         response_data, _ = jetson_sock.recvfrom(MAX_PACKET_SIZE)
         response = pickle.loads(response_data, encoding="latin1")
@@ -582,6 +583,7 @@ def main():
     car_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     car_sock.bind(server_address)
 
+    # Socket dedicado a hablar con la Jetson por UDP.
     jetson_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     jetson_address = (args.jetson_ip, args.jetson_port)
 
@@ -634,6 +636,7 @@ def main():
     while True:
         loop_start = time.perf_counter()
 
+        # Se descartan frames antiguos para que el control use la imagen mas reciente.
         latest_packets, packet_counts = recv_latest_packets(
             car_sock,
             args.drop_stale_frames,
@@ -663,6 +666,7 @@ def main():
         frame_counter += 1
 
         jetson_start = time.perf_counter()
+        # La decision de senales se calcula en la Jetson y vuelve como diccionario.
         jetson_response = ask_jetson_for_decision(
             jetson_sock=jetson_sock,
             jetson_address=jetson_address,
@@ -711,6 +715,7 @@ def main():
         control_acelerador = artemis_base_throttle(auto_utils)
         trayectory_not_found = 1
 
+        # Esta version no sigue trayectoria de suelo: solo aplica giros por senales.
         if control_mode in (1, 3):
             control_giro, control_acelerador = controls_without_road(
                 control_mode,
@@ -731,6 +736,7 @@ def main():
         if last_decision.stop:
             control_acelerador = 0
 
+        # El control manual tiene prioridad final sobre la IA si se pulsa teclado.
         decay_manual_overrides(manual_state, args.manual_hold_seconds)
         control_giro, control_acelerador = apply_manual_overrides(
             control_giro,
@@ -738,6 +744,7 @@ def main():
             manual_state,
         )
 
+        # Envio final al coche: giro y acelerador ya combinan IA, seguridad y manual.
         send_control(car_sock, control_giro, control_acelerador, car_address)
 
         if args.show_inference:
