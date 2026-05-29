@@ -167,7 +167,7 @@
   },
   "velocidad_max_30": {
     "type": "slow",
-    "throttle_cap": 0.41,
+    "throttle_cap": 0.4,
     "min_area": 750,
     "min_width": 0,
     "min_height": 0,
@@ -175,7 +175,7 @@
   },
   "velocidad_max_90": {
     "type": "slow",
-    "throttle_cap": 0.50,
+    "throttle_cap": 0.55,
     "min_area": 750,
     "min_width": 0,
     "min_height": 0,

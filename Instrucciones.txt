@@ -1,3 +1,4 @@
+source ~/venvs/yolo-jetson/bin/activate
 
 python3 jetson_ai_server_v2.py \
   --server-ip 192.168.50.2 \

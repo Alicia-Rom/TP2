@@ -23,8 +23,8 @@ class artemis_autonomous_car:
 		# Logitudinal control
 		self.stop = 0							# At 1 vehicle stoped
 		self.throttle_s = 0.04					# Throttle sensitivity
-		self.throttle_o = 0.45					# Throttle offset
-		self.max_throttle = 0.5				# Maximum throttle
+		self.throttle_o = 0.5					# Throttle offset
+		self.max_throttle = 0.55				# Maximum throttle
 		self.min_longitude_obstacle = 0.4		# Minimum distance to an obstacle
 		self.lidar_throttle_control = 0
 		self.battery_level = 10
